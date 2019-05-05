@@ -1,0 +1,23 @@
+package main
+
+import (
+	"flag"
+
+	"github.com/ksegun/rotatesnapshot"
+)
+
+var (
+	gcpProject string
+	filter     string
+)
+
+func init() {
+	flag.StringVar(&gcpProject, "project", "", "The Google Cloud Platform project name to use for this invocation.")
+	flag.StringVar(&filter, "filter", "", "Option filter string for the snapshot listing.")
+}
+
+func main() {
+	flag.Parse()
+	client := rotatesnapshot.NewGCPProvider(gcpProject, filter)
+	rotatesnapshot.Rotate(client)
+}
