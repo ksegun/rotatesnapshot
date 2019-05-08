@@ -5,3 +5,6 @@ retention:
   weekly: 4
   monthly: 3
   minimum: 10
+rotation:
+  daily: 23
+  weekly: Sunday

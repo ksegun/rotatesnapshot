@@ -3,44 +3,44 @@ package rotatesnapshot
 import (
 	"context"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 
+	"github.com/pkg/errors"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/compute/v1"
 )
 
-// GCP ...
+// GCP Google Cloud Provider
 type GCP struct {
-	ctx     context.Context
-	client  *http.Client
-	project string
-	filter  string
+	Ctx     context.Context
+	Client  *http.Client
+	Project string
+	Filter  string
 }
 
-// NewGCPProvider ...
-func NewGCPProvider(p, f string) *GCP {
+// NewGCPProvider Create a Google Cloud Provider
+func NewGCPProvider(p, f string) (*GCP, error) {
 	ctx := context.Background()
 
 	c, err := google.DefaultClient(ctx, compute.CloudPlatformScope)
 	if err != nil {
-		log.Fatal(err)
+		return nil, errors.Wrap(err, "failed to create default client")
 	}
 
-	return &GCP{ctx: ctx, client: c, project: p, filter: f}
+	return &GCP{Ctx: ctx, Client: c, Project: p, Filter: f}, nil
 }
 
-// ListSnapshots ...
+// ListSnapshots List Google Cloud Provider snapshots
 func (g *GCP) ListSnapshots() ([]Snapshot, error) {
-	computeService, err := compute.New(g.client)
+	computeService, err := compute.New(g.Client)
 	if err != nil {
-		log.Fatal(err)
+		return nil, errors.Wrap(err, "failed to create compute")
 	}
 
 	// Project ID for this request.
-	project := g.project
-	filter := g.filter
+	project := g.Project
+	filter := g.Filter
 
 	var snapshots []Snapshot
 
@@ -48,7 +48,7 @@ func (g *GCP) ListSnapshots() ([]Snapshot, error) {
 	if filter != "" {
 		req.Filter(filter)
 	}
-	if err := req.Pages(g.ctx, func(page *compute.SnapshotList) error {
+	if err := req.Pages(g.Ctx, func(page *compute.SnapshotList) error {
 		for _, snapshot := range page.Items {
 
 			t, _ := time.Parse(time.RFC3339, snapshot.CreationTimestamp)
@@ -56,25 +56,23 @@ func (g *GCP) ListSnapshots() ([]Snapshot, error) {
 		}
 		return nil
 	}); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to list snapshots")
 	}
 
-	fmt.Printf("Total Snapshots: %v\n", len(snapshots))
-
-	return snapshots, err
+	return snapshots, nil
 }
 
-// DeleteSnapshots Delete a list of snapshots
+// DeleteSnapshots Delete Google Cloud Provider snapshots
 func (g *GCP) DeleteSnapshots(s []string) error {
-	computeService, err := compute.New(g.client)
+	computeService, err := compute.New(g.Client)
 	if err != nil {
-		log.Fatal(err)
+		return errors.Wrap(err, "failed to create compute")
 	}
 
 	for _, v := range s {
-		resp, err := computeService.Snapshots.Delete(g.project, v).Context(g.ctx).Do()
+		resp, err := computeService.Snapshots.Delete(g.Project, v).Context(g.Ctx).Do()
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "failed to delete snapshot %s", v)
 		}
 		fmt.Printf("%#v\n", resp.Status)
 	}
