@@ -83,19 +83,7 @@ func dump(a []string) {
 	}
 }
 
-func dedup(s []string) {
-	sort.Strings(s)
-	j := 0
-	for i := 1; i < len(s); i++ {
-		if s[j] == s[i] {
-			continue
-		}
-		j++
-		s[j] = s[i]
-	}
-	s = s[:j+1]
-}
-
+// Compare a with b and extract the list of items of a not in b
 func difference(a, b []string) []string {
 	mb := map[string]bool{}
 	for _, x := range b {
@@ -110,6 +98,7 @@ func difference(a, b []string) []string {
 	return ab
 }
 
+// Find the index of string t in list
 func index(vs []string, t string) int {
 	for i, v := range vs {
 		if v == t {
@@ -119,19 +108,24 @@ func index(vs []string, t string) int {
 	return -1
 }
 
+// Return true if list contains string t
 func include(vs []string, t string) bool {
 	return index(vs, t) >= 0
 }
 
+// Find the start of the month for a given date
 func startOfMonth(date time.Time) time.Time {
 	return date.AddDate(0, 0, -date.Day()+1)
 }
 
+// Find the end of the month for a given date
 func endOfMonth(date time.Time) time.Time {
 	return date.AddDate(0, 1, -date.Day())
 }
 
-func firstOfMonth(t time.Time, w string) bool {
+// Return true if the date is the first on the month for the given weekday
+// e.g Fist Sunday of the month ....
+func firstWeekdayOfMonth(t time.Time, w string) bool {
 	s := startOfMonth(t)
 	for i := 0; i < 7; i++ {
 		if s.Weekday().String() == w && s.Day() == t.Day() {
@@ -142,6 +136,7 @@ func firstOfMonth(t time.Time, w string) bool {
 	return false
 }
 
+// Return true if the snaopshot should be rotated
 func isRotationTime(t, now time.Time, p, n string) bool {
 	if include(periods, p) {
 		switch p {
@@ -156,7 +151,7 @@ func isRotationTime(t, now time.Time, p, n string) bool {
 				return true
 			}
 		case periodWeekly:
-			if firstOfMonth(t, config.Rotation.Weekly) {
+			if firstWeekdayOfMonth(t, config.Rotation.Weekly) {
 				rotateWeekly[n] = struct{}{}
 				return true
 			}
@@ -167,6 +162,7 @@ func isRotationTime(t, now time.Time, p, n string) bool {
 	return false
 }
 
+// Rotate all snapshots for the period
 func rotateSnapshots(items []Snapshot, period, nextPeriod string, maxAge time.Duration) {
 	now := time.Now()
 	e := now.Add(-maxAge)
@@ -182,7 +178,7 @@ func rotateSnapshots(items []Snapshot, period, nextPeriod string, maxAge time.Du
 	}
 }
 
-// Rotate rotate snapshots based on condifure retention policy
+// Rotate rotate snapshots based on condifured retention policy
 func Rotate(p Provider) error {
 	s, err := p.ListSnapshots()
 	if err != nil {
@@ -216,7 +212,6 @@ func Rotate(p Provider) error {
 		for k := range snapshotsToDelete {
 			keys = append(keys, k)
 		}
-		dedup(keys)
 		sort.Strings(keys)
 
 		snapshotsRetained := difference(snapshots, keys)
