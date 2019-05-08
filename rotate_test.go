@@ -50,6 +50,8 @@ func (f *FakeProvider) DeleteSnapshots(s []string) error {
 }
 
 func TestRotate(t *testing.T) {
+	verbose = true
+
 	type args struct {
 		p Provider
 	}
