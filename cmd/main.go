@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"log"
 
 	"github.com/ksegun/rotatesnapshot"
 )
@@ -18,6 +19,11 @@ func init() {
 
 func main() {
 	flag.Parse()
-	client := rotatesnapshot.NewGCPProvider(gcpProject, filter)
-	rotatesnapshot.Rotate(client)
+	client, err := rotatesnapshot.NewGCPProvider(gcpProject, filter)
+	if err != nil {
+		log.Fatalf("%+v", err)
+	}
+	if err = rotatesnapshot.Rotate(client); err != nil {
+		log.Fatalf("%+v", err)
+	}
 }
