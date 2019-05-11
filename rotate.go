@@ -203,11 +203,11 @@ func Rotate(p Provider) error {
 		fmt.Printf("Rotate Weekly: %v\n", len(rotateWeekly))
 	}
 
-	ol := len(snapshots)
-	dl := len(snapshotsToDelete)
+	fmt.Println("")
+	fmt.Printf("          Snapshots: %v\n", len(snapshots))
+	fmt.Printf("Snapshots to delete: %v\n", len(snapshotsToDelete))
 
-	// if deleting will drop us below the minimum number of backups skip
-	if dl > 0 && (ol-dl) >= config.Policy.Minimum {
+	if len(snapshotsToDelete) > 0 {
 		keys := make([]string, 0, len(snapshotsToDelete))
 		for k := range snapshotsToDelete {
 			keys = append(keys, k)
@@ -216,10 +216,7 @@ func Rotate(p Provider) error {
 
 		snapshotsRetained := difference(snapshots, keys)
 
-		fmt.Println("")
-		fmt.Printf("          Snapshots: %v\n", len(snapshots))
 		fmt.Printf("  Snapshots to keep: %v\n", len(snapshotsRetained))
-		fmt.Printf("Snapshots to delete: %v\n", len(keys))
 
 		if verbose {
 			fmt.Println("")
@@ -233,7 +230,8 @@ func Rotate(p Provider) error {
 			dump(keys)
 		}
 
-		if !dryRun {
+		// if deleting will drop us below the minimum number of backups skip
+		if !dryRun && len(snapshotsRetained) > config.Policy.Minimum {
 			err = p.DeleteSnapshots(keys)
 		}
 	}
