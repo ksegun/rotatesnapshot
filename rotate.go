@@ -61,12 +61,6 @@ var (
 	periods        = []string{periodHourly, periodDaily, periodWeekly, periodMonthly}
 	periodDuration map[string]time.Duration
 
-	snapshotsToDelete = make(map[string]struct{})
-
-	rotateHourly = make(map[string]struct{})
-	rotateDailyy = make(map[string]struct{})
-	rotateWeekly = make(map[string]struct{})
-
 	dryRun  bool
 	verbose bool
 )
@@ -142,17 +136,15 @@ func isRotationTime(t, now time.Time, p, n string) bool {
 		switch p {
 		case periodHourly:
 			if t.Hour() == config.Rotation.Daily {
-				rotateHourly[n] = struct{}{}
 				return true
 			}
 		case periodDaily:
 			if t.Weekday().String() == config.Rotation.Weekly {
-				rotateDailyy[n] = struct{}{}
 				return true
 			}
 		case periodWeekly:
 			if firstWeekdayOfMonth(t, config.Rotation.Weekly) {
-				rotateWeekly[n] = struct{}{}
+
 				return true
 			}
 		default:
@@ -163,7 +155,7 @@ func isRotationTime(t, now time.Time, p, n string) bool {
 }
 
 // Rotate all snapshots for the period
-func rotateSnapshots(items []Snapshot, period, nextPeriod string, maxAge time.Duration) {
+func rotateSnapshots(items []Snapshot, deletes map[string]struct{}, period, nextPeriod string, maxAge time.Duration) {
 	now := time.Now()
 	e := now.Add(-maxAge)
 
@@ -172,10 +164,15 @@ func rotateSnapshots(items []Snapshot, period, nextPeriod string, maxAge time.Du
 		b = item.CreateTime
 		if b.Before(e) {
 			if !(nextPeriod != "" && isRotationTime(b, now, period, item.Name)) {
-				snapshotsToDelete[item.Name] = struct{}{}
+				deletes[item.Name] = struct{}{}
 			}
 		}
 	}
+}
+
+// SetVerbose set the verbose log falg
+func SetVerbose(v bool) {
+	verbose = v
 }
 
 // Rotate rotate snapshots based on condifured retention policy
@@ -190,33 +187,28 @@ func Rotate(p Provider) error {
 		snapshots = append(snapshots, v.Name)
 	}
 
-	rotateSnapshots(s, periodHourly, periodDaily, durationHourly)
-	rotateSnapshots(s, periodDaily, periodWeekly, durationDaily)
-	rotateSnapshots(s, periodWeekly, periodMonthly, durationWeekly)
-	rotateSnapshots(s, periodMonthly, "", durationMonthly)
+	snapshotsToDelete := make(map[string]struct{})
 
-	if verbose {
-		fmt.Printf("Settings: %+v\n", config)
+	rotateSnapshots(s, snapshotsToDelete, periodHourly, periodDaily, durationHourly)
+	rotateSnapshots(s, snapshotsToDelete, periodDaily, periodWeekly, durationDaily)
+	rotateSnapshots(s, snapshotsToDelete, periodWeekly, periodMonthly, durationWeekly)
+	rotateSnapshots(s, snapshotsToDelete, periodMonthly, "", durationMonthly)
 
-		fmt.Printf("Rotate Hourly: %v\n", len(rotateHourly))
-		fmt.Printf("Rotate Daily: %v\n", len(rotateDailyy))
-		fmt.Printf("Rotate Weekly: %v\n", len(rotateWeekly))
-	}
-
-	fmt.Println("")
 	fmt.Printf("          Snapshots: %v\n", len(snapshots))
 	fmt.Printf("Snapshots to delete: %v\n", len(snapshotsToDelete))
 
-	if len(snapshotsToDelete) > 0 {
-		keys := make([]string, 0, len(snapshotsToDelete))
+	dlen := len(snapshotsToDelete)
+	if dlen > 0 {
+		deletes := make([]string, 0, dlen)
 		for k := range snapshotsToDelete {
-			keys = append(keys, k)
+			deletes = append(deletes, k)
 		}
-		sort.Strings(keys)
+		sort.Strings(deletes)
 
-		snapshotsRetained := difference(snapshots, keys)
+		snapshotsRetained := difference(snapshots, deletes)
+		rlen := len(snapshotsRetained)
 
-		fmt.Printf("  Snapshots to keep: %v\n", len(snapshotsRetained))
+		fmt.Printf("  Snapshots to keep: %v\n", rlen)
 
 		if verbose {
 			fmt.Println("")
@@ -227,12 +219,16 @@ func Rotate(p Provider) error {
 			fmt.Println("")
 			fmt.Println("Snapshots To Delete")
 			fmt.Println("===================")
-			dump(keys)
+			dump(deletes)
 		}
 
 		// if deleting will drop us below the minimum number of backups skip
-		if !dryRun && len(snapshotsRetained) > config.Policy.Minimum {
-			err = p.DeleteSnapshots(keys)
+		if rlen > config.Policy.Minimum {
+			if !dryRun {
+				err = p.DeleteSnapshots(deletes)
+			}
+		} else {
+			fmt.Printf("Remaining snapshot count %d is below configured minimum %d, skipping delete.\n", rlen, config.Policy.Minimum)
 		}
 	}
 
@@ -244,7 +240,7 @@ func initConfig() {
 	viper.SetConfigName("config")
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("..")
-	viper.SetEnvPrefix("rsnap")
+	viper.SetEnvPrefix("snap")
 
 	if err := viper.ReadInConfig(); err != nil {
 		fmt.Printf("%+v\n", errors.WithStack(err))
