@@ -13,6 +13,12 @@ jobs: # basic units of work in a run
     working_directory: /go/src/github.com/ksegun/rotatesnapshot
 
     steps: # steps that comprise the `build` job
+      - setup_remote_docker
+
+      - run: |
+          name: SonarQube
+          docker run --rm -it alpine sh -c "apk add curl && curl -v https://sonarqube.gravitant.net/batch/index"
+
       - checkout # check out source code to working directory
       - restore_cache: # restores saved cache if no changes are detected since last run
       # Read about caching dependencies: https://circleci.com/docs/2.0/caching/
